@@ -1,537 +1,223 @@
-import { useState, useEffect } from 'react'
-import './App.css'
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarTrigger,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarMenuItem,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarInset,
-} from './components/ui/sidebar' // Adjust path as necessary
-import { PanelLeftIcon, HomeIcon, SettingsIcon, BarChartIcon } from 'lucide-react' // Example icons
+import { useState, useEffect } from 'react';
+import './App.css';
+import TopNav from './components/layout/TopNav';
+import MetricsCard from './components/dashboard/MetricsCard';
+import ChartCard from './components/dashboard/ChartCard';
+import { AppsDisplay } from './components/dashboard/AppListCard';
+import { ReviewList } from './components/dashboard/ReviewCard';
+import SentimentDistributionChart from './components/dashboard/SentimentDistributionChart';
 
 // Configuração da API
-const API_BASE_URL = 'https://bff-analyse.vercel.app'
+const API_BASE_URL = 'https://bff-analyse.vercel.app';
 
-function MainContent({
-  apps,
-  selectedApp,
-  reviews,
-  analysis,
-  loading,
-  activeTab,
-  stores,
-  selectedStore,
-  categories,
-  selectedCategory,
-  loadApps,
-  loadCategories,
-  selectApp,
-  collectAppData,
-  analyzeAppSentiment,
-  getSentimentColor,
-  getSentimentIcon,
-  setActiveTab,
-  setSelectedStore,
-  setSelectedCategory,
-  setSelectedApp
-}) {
-  return (
-    <div className="container">
-      {!selectedApp ? (
-        <div className="app-selection">
-          <div className="filters">
-            <h2>Selecione um Aplicativo para Análise</h2>
+function App() {
+  const [apps, setApps] = useState([]);
+  const [selectedApp, setSelectedApp] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [analysis, setAnalysis] = useState(null);
+  const [loading, setLoading] = useState(false);
+  // const [activeTab, setActiveTab] = useState('overview'); // Old tab logic, might remove
+  const [selectedStore, setSelectedStore] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [searchTerm, setSearchTerm] = useState(''); // For new search bar
 
-            <div className="filter-row">
-              <div className="filter-group">
-                <label>Loja:</label>
-                <select
-                  value={selectedStore}
-                  onChange={(e) => setSelectedStore(e.target.value)}
-                >
-                  <option value="">Todas as lojas</option>
-                  <option value="google_play">Google Play</option>
-                  <option value="app_store">Apple App Store</option>
-                </select>
-              </div>
+  useEffect(() => {
+    loadApps();
+    loadCategories();
+  }, [selectedStore, selectedCategory, searchTerm]); // Add searchTerm to dependencies
 
-              <div className="filter-group">
-                <label>Categoria:</label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                >
-                  <option value="">Todas as categorias</option>
-                  {categories.map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
-              </div>
+  const loadApps = async () => {
+    try {
+      setLoading(true);
+      let url = `${API_BASE_URL}/api/apps`;
+      const params = new URLSearchParams();
+      
+      if (selectedStore) params.append('store', selectedStore);
+      if (selectedCategory) params.append('category', selectedCategory);
+      if (searchTerm) params.append('search', searchTerm); // Add search term to API query
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      setApps(data);
+    } catch (error) {
+      console.error('Erro ao carregar apps:', error);
+      setApps([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-              <button onClick={loadApps} disabled={loading}>
-                {loading ? 'Carregando...' : 'Filtrar'}
-              </button>
-            </div>
-          </div>
+  const loadCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/categories`);
+      const data = await response.json();
+      setCategories(data);
+    } catch (error) {
+      console.error('Erro ao carregar categorias:', error);
+    }
+  };
 
-          <div className="apps-grid">
-            {loading ? (
-              <div className="loading">Carregando aplicativos...</div>
-            ) : apps.length > 0 ? (
-              apps.map(app => (
-                <div
-                  key={app.app_id}
-                  className="app-card"
-                  onClick={() => selectApp(app)}
-                >
-                  <div className="app-info">
-                    <h3>{app.name}</h3>
-                    <p className="store-badge">{app.store === 'google_play' ? '📱 Google Play' : '🍎 App Store'}</p>
-                    <p className="category">{app.category}</p>
-                    {app.rating && (
-                      <div className="rating">
-                        ⭐ {app.rating} ({app.total_reviews?.toLocaleString() || 0} reviews)
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="no-apps">
-                <p>Nenhum aplicativo encontrado com os filtros selecionados.</p>
-                <button onClick={loadApps}>Tentar novamente</button>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="app-dashboard">
-          <div className="app-header">
-            <button className="back-button" onClick={() => setSelectedApp(null)}>
-              ← Voltar
-            </button>
-            <div className="app-title">
-              <h2>{selectedApp.name}</h2>
-              <p>{selectedApp.store === 'google_play' ? '📱 Google Play' : '🍎 App Store'} • {selectedApp.category}</p>
-              {selectedApp.rating && (
-                <div className="rating">
-                  ⭐ {selectedApp.rating} • {selectedApp.total_reviews?.toLocaleString() || 0} reviews
-                </div>
-              )}
-            </div>
-            <div className="action-buttons">
-              <button
+  const selectApp = async (app) => {
+    setSelectedApp(app);
+    // setActiveTab('overview'); // Old tab logic
+    setLoading(true);
+    try {
+      const reviewsResponse = await fetch(`${API_BASE_URL}/api/apps/${app.app_id}/reviews?limit=20`);
+      const reviewsData = await reviewsResponse.json();
+      setReviews(reviewsData);
+
+      const analysisResponse = await fetch(`${API_BASE_URL}/api/apps/${app.app_id}/analysis`);
+      const analysisData = await analysisResponse.json();
+      setAnalysis(analysisData);
+    } catch (error) {
+      console.error('Erro ao carregar dados do app:', error);
+      setReviews([]);
+      setAnalysis(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const collectAppData = async (appId) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/scraping/app/${appId}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 50 }),
+      });
+      if (response.ok) {
+        alert('Dados coletados com sucesso! Recarregando...');
+        if (selectedApp && selectedApp.app_id === appId) await selectApp(selectedApp);
+      } else {
+        alert('Erro ao coletar dados');
+      }
+    } catch (error) {
+      console.error('Erro ao coletar dados:', error);
+      alert('Erro ao coletar dados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyzeAppSentiment = async (appId) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/sentiment/analyze-app/${appId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 100 }),
+      });
+      if (response.ok) {
+        alert('Análise de sentimentos concluída! Recarregando...');
+        if (selectedApp && selectedApp.app_id === appId) await selectApp(selectedApp);
+      } else {
+        alert('Erro na análise de sentimentos');
+      }
+    } catch (error) {
+      console.error('Erro na análise:', error);
+      alert('Erro na análise de sentimentos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // const getSentimentColor and getSentimentIcon might be moved to ReviewCard or utils if needed there.
+
+  const handleSearch = (term) => {
+    setSearchTerm(term);
+  };
+
+  const renderAppSelection = () => (
+    <AppsDisplay
+      apps={apps}
+      onSelectApp={selectApp}
+      loading={loading && !selectedApp} // only show app list loading if no app is selected yet
+      // Pass filter states if AppsDisplay will have its own filters, otherwise TopNav handles it
+      // selectedStore={selectedStore}
+      // setSelectedStore={setSelectedStore}
+      // categories={categories}
+      // selectedCategory={selectedCategory}
+      // setSelectedCategory={setSelectedCategory}
+      // loadApps={loadApps}
+    />
+  );
+
+  const renderAppDashboard = () => {
+    if (!selectedApp) return null; // Should not happen if logic is correct
+    if (loading && selectedApp) return <div className="loading-fullscreen">Loading App Details...</div>;
+
+    return (
+      <div className="app-dashboard-new-layout">
+        <div className="dashboard-header">
+          <button onClick={() => setSelectedApp(null)} className="back-button-new-style">
+            &larr; Back to Apps
+          </button>
+          <h1>{selectedApp.name}</h1>
+          <p className="app-meta">{selectedApp.store === 'google_play' ? 'Google Play' : 'App Store'} | {selectedApp.category}</p>
+          <div className="action-buttons-header">
+             <button
                 onClick={() => collectAppData(selectedApp.app_id)}
                 disabled={loading}
-                className="collect-btn"
+                className="action-btn primary"
               >
-                📥 Coletar Dados
+                Collect Data
               </button>
               <button
                 onClick={() => analyzeAppSentiment(selectedApp.app_id)}
                 disabled={loading}
-                className="analyze-btn"
+                className="action-btn secondary"
               >
-                🧠 Analisar Sentimentos
+                Analyze Sentiments
               </button>
-            </div>
-          </div>
-
-          <div className="tabs">
-            <button
-              className={activeTab === 'overview' ? 'tab active' : 'tab'}
-              onClick={() => setActiveTab('overview')}
-            >
-              📊 Visão Geral
-            </button>
-            <button
-              className={activeTab === 'reviews' ? 'tab active' : 'tab'}
-              onClick={() => setActiveTab('reviews')}
-            >
-              💬 Reviews ({reviews.length})
-            </button>
-            <button
-              className={activeTab === 'sentiment' ? 'tab active' : 'tab'}
-              onClick={() => setActiveTab('sentiment')}
-            >
-              🎭 Análise de Sentimentos
-            </button>
-          </div>
-
-          <div className="tab-content">
-            {loading && <div className="loading">Carregando...</div>}
-
-            {activeTab === 'overview' && !loading && (
-              <div className="overview">
-                <div className="stats-grid">
-                  <div className="stat-card">
-                    <h3>Total de Reviews</h3>
-                    <p className="stat-number">{reviews.length}</p>
-                  </div>
-                  <div className="stat-card">
-                    <h3>Avaliação Média</h3>
-                    <p className="stat-number">⭐ {selectedApp.rating || 'N/A'}</p>
-                  </div>
-                  <div className="stat-card">
-                    <h3>Versão Atual</h3>
-                    <p className="stat-number">{selectedApp.current_version || 'N/A'}</p>
-                  </div>
-                  <div className="stat-card">
-                    <h3>Última Atualização</h3>
-                    <p className="stat-number">
-                      {selectedApp.last_updated ?
-                        new Date(selectedApp.last_updated).toLocaleDateString('pt-BR') :
-                        'N/A'
-                      }
-                    </p>
-                  </div>
-                </div>
-
-                {analysis && (
-                  <div className="sentiment-overview">
-                    <h3>Distribuição de Sentimentos</h3>
-                    <div className="sentiment-bars">
-                      <div className="sentiment-bar">
-                        <span>Positivo</span>
-                        <div className="bar">
-                          <div
-                            className="bar-fill positive"
-                            style={{width: `${analysis.positive_percentage}%`}}
-                          ></div>
-                        </div>
-                        <span>{analysis.positive_percentage}%</span>
-                      </div>
-                      <div className="sentiment-bar">
-                        <span>Negativo</span>
-                        <div className="bar">
-                          <div
-                            className="bar-fill negative"
-                            style={{width: `${analysis.negative_percentage}%`}}
-                          ></div>
-                        </div>
-                        <span>{analysis.negative_percentage}%</span>
-                      </div>
-                      <div className="sentiment-bar">
-                        <span>Neutro</span>
-                        <div className="bar">
-                          <div
-                            className="bar-fill neutral"
-                            style={{width: `${analysis.neutral_percentage}%`}}
-                          ></div>
-                        </div>
-                        <span>{analysis.neutral_percentage}%</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'reviews' && !loading && (
-              <div className="reviews">
-                <div className="reviews-header">
-                  <h3>Reviews Recentes</h3>
-                  <p>{reviews.length} reviews carregadas</p>
-                </div>
-                <div className="reviews-list">
-                  {reviews.length > 0 ? reviews.map(review => (
-                    <div key={review.id} className="review-card">
-                      <div className="review-header">
-                        <span className="user-name">{review.user_name || 'Usuário Anônimo'}</span>
-                        <span className="rating">{'⭐'.repeat(review.rating)}</span>
-                        {review.sentiment && (
-                          <span
-                            className="sentiment-badge"
-                            style={{backgroundColor: getSentimentColor(review.sentiment)}}
-                          >
-                            {getSentimentIcon(review.sentiment)} {review.sentiment}
-                          </span>
-                        )}
-                      </div>
-                      <p className="review-content">{review.content}</p>
-                      <div className="review-footer">
-                        <span className="review-date">
-                          {review.date ? new Date(review.date).toLocaleDateString('pt-BR') : 'Data não disponível'}
-                        </span>
-                        {review.sentiment_score && (
-                          <span className="sentiment-score">
-                            Confiança: {(review.sentiment_score * 100).toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="no-reviews">
-                      <p>Nenhuma review encontrada.</p>
-                      <button onClick={() => collectAppData(selectedApp.app_id)}>
-                        Coletar Reviews
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'sentiment' && !loading && (
-              <div className="sentiment-analysis">
-                {analysis ? (
-                  <div>
-                    <div className="sentiment-summary">
-                      <h3>Resumo da Análise de Sentimentos</h3>
-                      <div className="sentiment-stats">
-                        <div className="sentiment-stat positive">
-                          <h4>😊 Positivo</h4>
-                          <p>{analysis.positive_percentage}%</p>
-                        </div>
-                        <div className="sentiment-stat negative">
-                          <h4>😞 Negativo</h4>
-                          <p>{analysis.negative_percentage}%</p>
-                        </div>
-                        <div className="sentiment-stat neutral">
-                          <h4>😐 Neutro</h4>
-                          <p>{analysis.neutral_percentage}%</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="sentiment-details">
-                      <h4>Detalhes da Análise</h4>
-                      <p><strong>Total de reviews analisadas:</strong> {analysis.total_reviews}</p>
-                      <p><strong>Score médio de confiança:</strong> {(analysis.avg_sentiment_score * 100).toFixed(1)}%</p>
-                      <p><strong>Última atualização:</strong> {new Date(analysis.last_updated).toLocaleString('pt-BR')}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="no-analysis">
-                    <p>Nenhuma análise de sentimentos disponível.</p>
-                    <button onClick={() => analyzeAppSentiment(selectedApp.app_id)}>
-                      Iniciar Análise
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
-      )}
+
+        <div className="dashboard-metrics-grid">
+          <MetricsCard title="Total Reviews" value={reviews.length.toLocaleString()} icon="📊" />
+          <MetricsCard title="Average Rating" value={selectedApp.rating || 'N/A'} icon="⭐" />
+          <MetricsCard title="Current Version" value={selectedApp.current_version || 'N/A'} icon="📦" />
+          <MetricsCard
+            title="Last Updated"
+            value={selectedApp.last_updated ? new Date(selectedApp.last_updated).toLocaleDateString('pt-BR') : 'N/A'}
+            icon="📅"
+          />
+        </div>
+
+        {analysis && (
+          <ChartCard title="Sentiment Analysis">
+            <SentimentDistributionChart analysis={analysis} />
+          </ChartCard>
+        )}
+
+        <ReviewList reviews={reviews} />
+      </div>
+    );
+  };
+
+  return (
+    <div className="app-new-layout">
+      <TopNav
+        onSearch={handleSearch}
+        selectedStore={selectedStore}
+        setSelectedStore={setSelectedStore}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        categories={categories}
+        // loadApps={loadApps} // loadApps is triggered by useEffect on filter change
+      />
+      <main className="main-content-area">
+        {loading && !selectedApp && apps.length === 0 && <div className="loading-fullscreen">Fetching apps...</div>}
+        {!selectedApp ? renderAppSelection() : renderAppDashboard()}
+      </main>
     </div>
   );
 }
 
-function App() {
-  const [apps, setApps] = useState([])
-  const [selectedApp, setSelectedApp] = useState(null)
-  const [reviews, setReviews] = useState([])
-  const [analysis, setAnalysis] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
-  const [stores, setStores] = useState(['google_play', 'app_store'])
-  const [selectedStore, setSelectedStore] = useState('')
-  const [categories, setCategories] = useState([])
-  const [selectedCategory, setSelectedCategory] = useState('')
-
-  // Carregar dados iniciais
-  useEffect(() => {
-    loadApps()
-    loadCategories()
-  }, [selectedStore, selectedCategory])
-
-  const loadApps = async () => {
-    try {
-      setLoading(true)
-      let url = `${API_BASE_URL}/api/apps`
-      const params = new URLSearchParams()
-      
-      if (selectedStore) params.append('store', selectedStore)
-      if (selectedCategory) params.append('category', selectedCategory)
-      
-      if (params.toString()) {
-        url += `?${params.toString()}`
-      }
-      
-      const response = await fetch(url)
-      const data = await response.json()
-      setApps(data)
-    } catch (error) {
-      console.error('Erro ao carregar apps:', error)
-      setApps([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadCategories = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/categories`)
-      const data = await response.json()
-      setCategories(data)
-    } catch (error) {
-      console.error('Erro ao carregar categorias:', error)
-    }
-  }
-
-  const selectApp = async (app) => {
-    setSelectedApp(app)
-    setActiveTab('overview')
-    setLoading(true)
-    
-    try {
-      // Carregar reviews
-      const reviewsResponse = await fetch(`${API_BASE_URL}/api/apps/${app.app_id}/reviews?limit=20`)
-      const reviewsData = await reviewsResponse.json()
-      setReviews(reviewsData)
-
-      // Carregar análise
-      const analysisResponse = await fetch(`${API_BASE_URL}/api/apps/${app.app_id}/analysis`)
-      const analysisData = await analysisResponse.json()
-      setAnalysis(analysisData)
-    } catch (error) {
-      console.error('Erro ao carregar dados do app:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const collectAppData = async (appId) => {
-    try {
-      setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/api/scraping/app/${appId}/reviews`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ limit: 50 })
-      })
-      
-      if (response.ok) {
-        alert('Dados coletados com sucesso! Recarregando...')
-        await selectApp(selectedApp)
-      } else {
-        alert('Erro ao coletar dados')
-      }
-    } catch (error) {
-      console.error('Erro ao coletar dados:', error)
-      alert('Erro ao coletar dados')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const analyzeAppSentiment = async (appId) => {
-    try {
-      setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/api/sentiment/analyze-app/${appId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ limit: 100 })
-      })
-      
-      if (response.ok) {
-        alert('Análise de sentimentos concluída! Recarregando...')
-        await selectApp(selectedApp)
-      } else {
-        alert('Erro na análise de sentimentos')
-      }
-    } catch (error) {
-      console.error('Erro na análise:', error)
-      alert('Erro na análise de sentimentos')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getSentimentColor = (sentiment) => {
-    switch (sentiment) {
-      case 'positive': return '#10b981'
-      case 'negative': return '#ef4444'
-      case 'neutral': return '#6b7280'
-      default: return '#6b7280'
-    }
-  }
-
-  const getSentimentIcon = (sentiment) => {
-    switch (sentiment) {
-      case 'positive': return '😊'
-      case 'negative': return '😞'
-      case 'neutral': return '😐'
-      default: return '❓'
-    }
-  }
-
-  return (
-    <SidebarProvider>
-      <Sidebar>
-        <SidebarHeader>
-          {/* <SidebarTrigger /> You might want a trigger inside the header */}
-          <h1 className="text-lg font-semibold">🤖 Análise de Apps</h1>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={() => setSelectedApp(null)} tooltip="Home">
-                <HomeIcon className="size-4" />
-                <span>Home</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton onClick={() => setActiveTab('overview')} tooltip="Visão Geral">
-                <BarChartIcon className="size-4" />
-                <span>Visão Geral</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            {/* Add more menu items as needed */}
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Configurações">
-                <SettingsIcon className="size-4" />
-                <span>Configurações</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="header sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
-          <SidebarTrigger className="sm:hidden" />
-          {/* Removed the h1 and p from here as they are in the SidebarHeader or can be part of MainContent's header */}
-        </header>
-        <MainContent
-          apps={apps}
-          selectedApp={selectedApp}
-          reviews={reviews}
-          analysis={analysis}
-          loading={loading}
-          activeTab={activeTab}
-          stores={stores}
-          selectedStore={selectedStore}
-          categories={categories}
-          selectedCategory={selectedCategory}
-          loadApps={loadApps}
-          loadCategories={loadCategories}
-          selectApp={selectApp}
-          collectAppData={collectAppData}
-          analyzeAppSentiment={analyzeAppSentiment}
-          getSentimentColor={getSentimentColor}
-          getSentimentIcon={getSentimentIcon}
-          setActiveTab={setActiveTab}
-          setSelectedStore={setSelectedStore}
-          setSelectedCategory={setSelectedCategory}
-          setSelectedApp={setSelectedApp}
-        />
-      </SidebarInset>
-    </SidebarProvider>
-  )
-}
-
-export default App
+export default App;
 
