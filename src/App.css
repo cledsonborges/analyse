@@ -606,3 +606,36 @@ body {
   }
 }
 
+/* Sidebar adjustments */
+.app {
+  display: flex; /* Changed from min-height to flex for sidebar layout */
+}
+
+/* Ensure the main content area takes up remaining space and scrolls independently */
+.container {
+  flex-grow: 1; /* Allow content to grow and take available space */
+  overflow-y: auto; /* Allow independent scrolling for content */
+  height: 100vh; /* Make container take full viewport height */
+  padding-top: 0; /* Adjust if header is part of this scrollable area */
+}
+
+/* Adjust header when it's inside SidebarInset */
+.header.sticky {
+  /* Styles for the header when it's part of the main content area with sidebar */
+  /* Example: remove gradient if sidebar has its own background */
+  background: white;
+  color: #1e293b;
+  padding: 1rem; /* Adjust padding as needed */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  /* Ensure it doesn't overlap sidebar trigger if they are close */
+}
+
+/* Specificity for header inside SidebarInset if needed */
+[data-slot="sidebar-inset"] .header {
+  /* Overrides for header when inside the inset area */
+}
+
+/* Make sure the app selection and dashboard sections are well-behaved within the new layout */
+.app-selection, .app-dashboard {
+  margin-top: 1rem; /* Add some space below the potentially sticky header */
+}
