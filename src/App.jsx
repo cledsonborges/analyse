@@ -1,8 +1,327 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarTrigger,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenuItem,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarInset,
+} from './components/ui/sidebar' // Adjust path as necessary
+import { PanelLeftIcon, HomeIcon, SettingsIcon, BarChartIcon } from 'lucide-react' // Example icons
 
 // Configuração da API
 const API_BASE_URL = 'https://bff-analyse.vercel.app'
+
+function MainContent({
+  apps,
+  selectedApp,
+  reviews,
+  analysis,
+  loading,
+  activeTab,
+  stores,
+  selectedStore,
+  categories,
+  selectedCategory,
+  loadApps,
+  loadCategories,
+  selectApp,
+  collectAppData,
+  analyzeAppSentiment,
+  getSentimentColor,
+  getSentimentIcon,
+  setActiveTab,
+  setSelectedStore,
+  setSelectedCategory,
+  setSelectedApp
+}) {
+  return (
+    <div className="container">
+      {!selectedApp ? (
+        <div className="app-selection">
+          <div className="filters">
+            <h2>Selecione um Aplicativo para Análise</h2>
+
+            <div className="filter-row">
+              <div className="filter-group">
+                <label>Loja:</label>
+                <select
+                  value={selectedStore}
+                  onChange={(e) => setSelectedStore(e.target.value)}
+                >
+                  <option value="">Todas as lojas</option>
+                  <option value="google_play">Google Play</option>
+                  <option value="app_store">Apple App Store</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Categoria:</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                >
+                  <option value="">Todas as categorias</option>
+                  {categories.map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button onClick={loadApps} disabled={loading}>
+                {loading ? 'Carregando...' : 'Filtrar'}
+              </button>
+            </div>
+          </div>
+
+          <div className="apps-grid">
+            {loading ? (
+              <div className="loading">Carregando aplicativos...</div>
+            ) : apps.length > 0 ? (
+              apps.map(app => (
+                <div
+                  key={app.app_id}
+                  className="app-card"
+                  onClick={() => selectApp(app)}
+                >
+                  <div className="app-info">
+                    <h3>{app.name}</h3>
+                    <p className="store-badge">{app.store === 'google_play' ? '📱 Google Play' : '🍎 App Store'}</p>
+                    <p className="category">{app.category}</p>
+                    {app.rating && (
+                      <div className="rating">
+                        ⭐ {app.rating} ({app.total_reviews?.toLocaleString() || 0} reviews)
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="no-apps">
+                <p>Nenhum aplicativo encontrado com os filtros selecionados.</p>
+                <button onClick={loadApps}>Tentar novamente</button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="app-dashboard">
+          <div className="app-header">
+            <button className="back-button" onClick={() => setSelectedApp(null)}>
+              ← Voltar
+            </button>
+            <div className="app-title">
+              <h2>{selectedApp.name}</h2>
+              <p>{selectedApp.store === 'google_play' ? '📱 Google Play' : '🍎 App Store'} • {selectedApp.category}</p>
+              {selectedApp.rating && (
+                <div className="rating">
+                  ⭐ {selectedApp.rating} • {selectedApp.total_reviews?.toLocaleString() || 0} reviews
+                </div>
+              )}
+            </div>
+            <div className="action-buttons">
+              <button
+                onClick={() => collectAppData(selectedApp.app_id)}
+                disabled={loading}
+                className="collect-btn"
+              >
+                📥 Coletar Dados
+              </button>
+              <button
+                onClick={() => analyzeAppSentiment(selectedApp.app_id)}
+                disabled={loading}
+                className="analyze-btn"
+              >
+                🧠 Analisar Sentimentos
+              </button>
+            </div>
+          </div>
+
+          <div className="tabs">
+            <button
+              className={activeTab === 'overview' ? 'tab active' : 'tab'}
+              onClick={() => setActiveTab('overview')}
+            >
+              📊 Visão Geral
+            </button>
+            <button
+              className={activeTab === 'reviews' ? 'tab active' : 'tab'}
+              onClick={() => setActiveTab('reviews')}
+            >
+              💬 Reviews ({reviews.length})
+            </button>
+            <button
+              className={activeTab === 'sentiment' ? 'tab active' : 'tab'}
+              onClick={() => setActiveTab('sentiment')}
+            >
+              🎭 Análise de Sentimentos
+            </button>
+          </div>
+
+          <div className="tab-content">
+            {loading && <div className="loading">Carregando...</div>}
+
+            {activeTab === 'overview' && !loading && (
+              <div className="overview">
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <h3>Total de Reviews</h3>
+                    <p className="stat-number">{reviews.length}</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Avaliação Média</h3>
+                    <p className="stat-number">⭐ {selectedApp.rating || 'N/A'}</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Versão Atual</h3>
+                    <p className="stat-number">{selectedApp.current_version || 'N/A'}</p>
+                  </div>
+                  <div className="stat-card">
+                    <h3>Última Atualização</h3>
+                    <p className="stat-number">
+                      {selectedApp.last_updated ?
+                        new Date(selectedApp.last_updated).toLocaleDateString('pt-BR') :
+                        'N/A'
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                {analysis && (
+                  <div className="sentiment-overview">
+                    <h3>Distribuição de Sentimentos</h3>
+                    <div className="sentiment-bars">
+                      <div className="sentiment-bar">
+                        <span>Positivo</span>
+                        <div className="bar">
+                          <div
+                            className="bar-fill positive"
+                            style={{width: `${analysis.positive_percentage}%`}}
+                          ></div>
+                        </div>
+                        <span>{analysis.positive_percentage}%</span>
+                      </div>
+                      <div className="sentiment-bar">
+                        <span>Negativo</span>
+                        <div className="bar">
+                          <div
+                            className="bar-fill negative"
+                            style={{width: `${analysis.negative_percentage}%`}}
+                          ></div>
+                        </div>
+                        <span>{analysis.negative_percentage}%</span>
+                      </div>
+                      <div className="sentiment-bar">
+                        <span>Neutro</span>
+                        <div className="bar">
+                          <div
+                            className="bar-fill neutral"
+                            style={{width: `${analysis.neutral_percentage}%`}}
+                          ></div>
+                        </div>
+                        <span>{analysis.neutral_percentage}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'reviews' && !loading && (
+              <div className="reviews">
+                <div className="reviews-header">
+                  <h3>Reviews Recentes</h3>
+                  <p>{reviews.length} reviews carregadas</p>
+                </div>
+                <div className="reviews-list">
+                  {reviews.length > 0 ? reviews.map(review => (
+                    <div key={review.id} className="review-card">
+                      <div className="review-header">
+                        <span className="user-name">{review.user_name || 'Usuário Anônimo'}</span>
+                        <span className="rating">{'⭐'.repeat(review.rating)}</span>
+                        {review.sentiment && (
+                          <span
+                            className="sentiment-badge"
+                            style={{backgroundColor: getSentimentColor(review.sentiment)}}
+                          >
+                            {getSentimentIcon(review.sentiment)} {review.sentiment}
+                          </span>
+                        )}
+                      </div>
+                      <p className="review-content">{review.content}</p>
+                      <div className="review-footer">
+                        <span className="review-date">
+                          {review.date ? new Date(review.date).toLocaleDateString('pt-BR') : 'Data não disponível'}
+                        </span>
+                        {review.sentiment_score && (
+                          <span className="sentiment-score">
+                            Confiança: {(review.sentiment_score * 100).toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="no-reviews">
+                      <p>Nenhuma review encontrada.</p>
+                      <button onClick={() => collectAppData(selectedApp.app_id)}>
+                        Coletar Reviews
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'sentiment' && !loading && (
+              <div className="sentiment-analysis">
+                {analysis ? (
+                  <div>
+                    <div className="sentiment-summary">
+                      <h3>Resumo da Análise de Sentimentos</h3>
+                      <div className="sentiment-stats">
+                        <div className="sentiment-stat positive">
+                          <h4>😊 Positivo</h4>
+                          <p>{analysis.positive_percentage}%</p>
+                        </div>
+                        <div className="sentiment-stat negative">
+                          <h4>😞 Negativo</h4>
+                          <p>{analysis.negative_percentage}%</p>
+                        </div>
+                        <div className="sentiment-stat neutral">
+                          <h4>😐 Neutro</h4>
+                          <p>{analysis.neutral_percentage}%</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="sentiment-details">
+                      <h4>Detalhes da Análise</h4>
+                      <p><strong>Total de reviews analisadas:</strong> {analysis.total_reviews}</p>
+                      <p><strong>Score médio de confiança:</strong> {(analysis.avg_sentiment_score * 100).toFixed(1)}%</p>
+                      <p><strong>Última atualização:</strong> {new Date(analysis.last_updated).toLocaleString('pt-BR')}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="no-analysis">
+                    <p>Nenhuma análise de sentimentos disponível.</p>
+                    <button onClick={() => analyzeAppSentiment(selectedApp.app_id)}>
+                      Iniciar Análise
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function App() {
   const [apps, setApps] = useState([])
@@ -147,292 +466,70 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <header className="header">
-        <h1>🤖 Agente de Análise de Apps</h1>
-        <p>Análise inteligente de aplicativos da Google Play e Apple Store</p>
-      </header>
-
-      <div className="container">
-        {!selectedApp ? (
-          <div className="app-selection">
-            <div className="filters">
-              <h2>Selecione um Aplicativo para Análise</h2>
-              
-              <div className="filter-row">
-                <div className="filter-group">
-                  <label>Loja:</label>
-                  <select 
-                    value={selectedStore} 
-                    onChange={(e) => setSelectedStore(e.target.value)}
-                  >
-                    <option value="">Todas as lojas</option>
-                    <option value="google_play">Google Play</option>
-                    <option value="app_store">Apple App Store</option>
-                  </select>
-                </div>
-
-                <div className="filter-group">
-                  <label>Categoria:</label>
-                  <select 
-                    value={selectedCategory} 
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                  >
-                    <option value="">Todas as categorias</option>
-                    {categories.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <button onClick={loadApps} disabled={loading}>
-                  {loading ? 'Carregando...' : 'Filtrar'}
-                </button>
-              </div>
-            </div>
-
-            <div className="apps-grid">
-              {loading ? (
-                <div className="loading">Carregando aplicativos...</div>
-              ) : apps.length > 0 ? (
-                apps.map(app => (
-                  <div 
-                    key={app.app_id} 
-                    className="app-card"
-                    onClick={() => selectApp(app)}
-                  >
-                    <div className="app-info">
-                      <h3>{app.name}</h3>
-                      <p className="store-badge">{app.store === 'google_play' ? '📱 Google Play' : '🍎 App Store'}</p>
-                      <p className="category">{app.category}</p>
-                      {app.rating && (
-                        <div className="rating">
-                          ⭐ {app.rating} ({app.total_reviews?.toLocaleString() || 0} reviews)
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="no-apps">
-                  <p>Nenhum aplicativo encontrado com os filtros selecionados.</p>
-                  <button onClick={loadApps}>Tentar novamente</button>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="app-dashboard">
-            <div className="app-header">
-              <button className="back-button" onClick={() => setSelectedApp(null)}>
-                ← Voltar
-              </button>
-              <div className="app-title">
-                <h2>{selectedApp.name}</h2>
-                <p>{selectedApp.store === 'google_play' ? '📱 Google Play' : '🍎 App Store'} • {selectedApp.category}</p>
-                {selectedApp.rating && (
-                  <div className="rating">
-                    ⭐ {selectedApp.rating} • {selectedApp.total_reviews?.toLocaleString() || 0} reviews
-                  </div>
-                )}
-              </div>
-              <div className="action-buttons">
-                <button 
-                  onClick={() => collectAppData(selectedApp.app_id)}
-                  disabled={loading}
-                  className="collect-btn"
-                >
-                  📥 Coletar Dados
-                </button>
-                <button 
-                  onClick={() => analyzeAppSentiment(selectedApp.app_id)}
-                  disabled={loading}
-                  className="analyze-btn"
-                >
-                  🧠 Analisar Sentimentos
-                </button>
-              </div>
-            </div>
-
-            <div className="tabs">
-              <button 
-                className={activeTab === 'overview' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('overview')}
-              >
-                📊 Visão Geral
-              </button>
-              <button 
-                className={activeTab === 'reviews' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('reviews')}
-              >
-                💬 Reviews ({reviews.length})
-              </button>
-              <button 
-                className={activeTab === 'sentiment' ? 'tab active' : 'tab'}
-                onClick={() => setActiveTab('sentiment')}
-              >
-                🎭 Análise de Sentimentos
-              </button>
-            </div>
-
-            <div className="tab-content">
-              {loading && <div className="loading">Carregando...</div>}
-
-              {activeTab === 'overview' && !loading && (
-                <div className="overview">
-                  <div className="stats-grid">
-                    <div className="stat-card">
-                      <h3>Total de Reviews</h3>
-                      <p className="stat-number">{reviews.length}</p>
-                    </div>
-                    <div className="stat-card">
-                      <h3>Avaliação Média</h3>
-                      <p className="stat-number">⭐ {selectedApp.rating || 'N/A'}</p>
-                    </div>
-                    <div className="stat-card">
-                      <h3>Versão Atual</h3>
-                      <p className="stat-number">{selectedApp.current_version || 'N/A'}</p>
-                    </div>
-                    <div className="stat-card">
-                      <h3>Última Atualização</h3>
-                      <p className="stat-number">
-                        {selectedApp.last_updated ? 
-                          new Date(selectedApp.last_updated).toLocaleDateString('pt-BR') : 
-                          'N/A'
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  {analysis && (
-                    <div className="sentiment-overview">
-                      <h3>Distribuição de Sentimentos</h3>
-                      <div className="sentiment-bars">
-                        <div className="sentiment-bar">
-                          <span>Positivo</span>
-                          <div className="bar">
-                            <div 
-                              className="bar-fill positive" 
-                              style={{width: `${analysis.positive_percentage}%`}}
-                            ></div>
-                          </div>
-                          <span>{analysis.positive_percentage}%</span>
-                        </div>
-                        <div className="sentiment-bar">
-                          <span>Negativo</span>
-                          <div className="bar">
-                            <div 
-                              className="bar-fill negative" 
-                              style={{width: `${analysis.negative_percentage}%`}}
-                            ></div>
-                          </div>
-                          <span>{analysis.negative_percentage}%</span>
-                        </div>
-                        <div className="sentiment-bar">
-                          <span>Neutro</span>
-                          <div className="bar">
-                            <div 
-                              className="bar-fill neutral" 
-                              style={{width: `${analysis.neutral_percentage}%`}}
-                            ></div>
-                          </div>
-                          <span>{analysis.neutral_percentage}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'reviews' && !loading && (
-                <div className="reviews">
-                  <div className="reviews-header">
-                    <h3>Reviews Recentes</h3>
-                    <p>{reviews.length} reviews carregadas</p>
-                  </div>
-                  <div className="reviews-list">
-                    {reviews.length > 0 ? reviews.map(review => (
-                      <div key={review.id} className="review-card">
-                        <div className="review-header">
-                          <span className="user-name">{review.user_name || 'Usuário Anônimo'}</span>
-                          <span className="rating">{'⭐'.repeat(review.rating)}</span>
-                          {review.sentiment && (
-                            <span 
-                              className="sentiment-badge"
-                              style={{backgroundColor: getSentimentColor(review.sentiment)}}
-                            >
-                              {getSentimentIcon(review.sentiment)} {review.sentiment}
-                            </span>
-                          )}
-                        </div>
-                        <p className="review-content">{review.content}</p>
-                        <div className="review-footer">
-                          <span className="review-date">
-                            {review.date ? new Date(review.date).toLocaleDateString('pt-BR') : 'Data não disponível'}
-                          </span>
-                          {review.sentiment_score && (
-                            <span className="sentiment-score">
-                              Confiança: {(review.sentiment_score * 100).toFixed(1)}%
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )) : (
-                      <div className="no-reviews">
-                        <p>Nenhuma review encontrada.</p>
-                        <button onClick={() => collectAppData(selectedApp.app_id)}>
-                          Coletar Reviews
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'sentiment' && !loading && (
-                <div className="sentiment-analysis">
-                  {analysis ? (
-                    <div>
-                      <div className="sentiment-summary">
-                        <h3>Resumo da Análise de Sentimentos</h3>
-                        <div className="sentiment-stats">
-                          <div className="sentiment-stat positive">
-                            <h4>😊 Positivo</h4>
-                            <p>{analysis.positive_percentage}%</p>
-                          </div>
-                          <div className="sentiment-stat negative">
-                            <h4>😞 Negativo</h4>
-                            <p>{analysis.negative_percentage}%</p>
-                          </div>
-                          <div className="sentiment-stat neutral">
-                            <h4>😐 Neutro</h4>
-                            <p>{analysis.neutral_percentage}%</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="sentiment-details">
-                        <h4>Detalhes da Análise</h4>
-                        <p><strong>Total de reviews analisadas:</strong> {analysis.total_reviews}</p>
-                        <p><strong>Score médio de confiança:</strong> {(analysis.avg_sentiment_score * 100).toFixed(1)}%</p>
-                        <p><strong>Última atualização:</strong> {new Date(analysis.last_updated).toLocaleString('pt-BR')}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="no-analysis">
-                      <p>Nenhuma análise de sentimentos disponível.</p>
-                      <button onClick={() => analyzeAppSentiment(selectedApp.app_id)}>
-                        Iniciar Análise
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          {/* <SidebarTrigger /> You might want a trigger inside the header */}
+          <h1 className="text-lg font-semibold">🤖 Análise de Apps</h1>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => setSelectedApp(null)} tooltip="Home">
+                <HomeIcon className="size-4" />
+                <span>Home</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => setActiveTab('overview')} tooltip="Visão Geral">
+                <BarChartIcon className="size-4" />
+                <span>Visão Geral</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {/* Add more menu items as needed */}
+          </SidebarMenu>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Configurações">
+                <SettingsIcon className="size-4" />
+                <span>Configurações</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <header className="header sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+          <SidebarTrigger className="sm:hidden" />
+          {/* Removed the h1 and p from here as they are in the SidebarHeader or can be part of MainContent's header */}
+        </header>
+        <MainContent
+          apps={apps}
+          selectedApp={selectedApp}
+          reviews={reviews}
+          analysis={analysis}
+          loading={loading}
+          activeTab={activeTab}
+          stores={stores}
+          selectedStore={selectedStore}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          loadApps={loadApps}
+          loadCategories={loadCategories}
+          selectApp={selectApp}
+          collectAppData={collectAppData}
+          analyzeAppSentiment={analyzeAppSentiment}
+          getSentimentColor={getSentimentColor}
+          getSentimentIcon={getSentimentIcon}
+          setActiveTab={setActiveTab}
+          setSelectedStore={setSelectedStore}
+          setSelectedCategory={setSelectedCategory}
+          setSelectedApp={setSelectedApp}
+        />
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
 
